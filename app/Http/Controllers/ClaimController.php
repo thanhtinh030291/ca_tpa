@@ -804,8 +804,10 @@ class ClaimController extends Controller
 
                 if($claim_type != "P"){
                     if($user->hasRole('Claim Independent')){
-                        $to_user = User::whereHas("roles", function($q){ $q->where("name", "QC"); })->get()->pluck('id')->toArray();
-                        $to_user = [Arr::random($to_user)];
+                        //$to_user = User::whereHas("roles", function($q){ $q->where("name", "QC"); })->get()->pluck('id')->toArray();
+                        //$to_user = [Arr::random($to_user)];
+                        $status_change[0] = 10; //QC approved
+                        $to_user = [$user_create->manager];
                     }
 
                     if(  $user_create->hasRole('Claim Independent') && $user->hasRole('QC')){
