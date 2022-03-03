@@ -189,6 +189,8 @@ class ClaimController extends Controller
         }
         $id_project_mb = DB::connection('mysql_mantis')->table('mantis_project_table')->where('name','like','%Mobile%')->first();
         $id_project_mb = $id_project_mb ? $id_project_mb->id : "99999";
+
+        
         
         //end valid
         if ($request->_url_file_sorted) {
