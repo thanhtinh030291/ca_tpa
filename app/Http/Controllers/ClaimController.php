@@ -215,9 +215,8 @@ class ClaimController extends Controller
             'created_user' =>  $userId,
             'updated_user' =>  $userId,
         ];
-        if($user->hasRole('ClaimGOP')){
-            $dataNew['claim_type'] = "P";
-        }
+        $dataNew['claim_type'] = $claim_type;
+        
         $dataItems = [];
         // get value item orc
 
