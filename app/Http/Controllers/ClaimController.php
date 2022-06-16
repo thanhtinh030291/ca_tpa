@@ -215,7 +215,9 @@ class ClaimController extends Controller
             'created_user' =>  $userId,
             'updated_user' =>  $userId,
         ];
-        $dataNew['claim_type'] = $claim_type;
+        if($claim_type == 'P'){
+            $dataNew['claim_type'] = "P";
+        }
         
         $dataItems = [];
         // get value item orc
