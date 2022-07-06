@@ -394,7 +394,7 @@ class ClaimController extends Controller
             }); 
          }
          //show btn payment 
-        $can_pay_rq = false;
+        $can_pay_rq = true;
         $count_ap = $export_letter->where('apv_amt',$approve_amt)->where('approve',"!=",null)->count();
         $ready_to_pay_id = \App\MANTIS_CUSTOM_FIELD::where('name','Pay Claim')->first()->id;
         $client_approved_id = \App\MANTIS_CUSTOM_FIELD::where('name','Client Approved')->first()->id;
