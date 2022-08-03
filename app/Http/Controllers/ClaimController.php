@@ -1443,11 +1443,13 @@ class ClaimController extends Controller
         $barcode = '<barcode code="'.$claim->barcode.'" type="C93"  height="1.3" />'
         .'<p style="text-align: right;">'.$claim->barcode.'</p>';
         $CSRRemark_TermRemark = CSRRemark_TermRemark($claim);
-
+        $CSRRemark_TermRemark_en = CSRRemark_TermRemark($claim, 'en');
         $plan = $HBS_CL_CLAIM->plan;
         $CSR_REMASK_ALL_LINE = $HBS_CL_CLAIM->remark;
         $CSRRemark = $CSRRemark_TermRemark['CSRRemark'];
+        $CSRRemark_en = $CSRRemark_TermRemark_en['CSRRemark'];
         $TermRemark = $CSRRemark_TermRemark['TermRemark'];
+        $TermRemark_en = $CSRRemark_TermRemark_en['TermRemark'];
         $itemsReject = $CSRRemark_TermRemark['itemsReject'];
         $sumAmountReject = $CSRRemark_TermRemark['sumAmountReject'];
         $sumAppAmt = (int)$HBS_CL_CLAIM->sumAppAmt ;
@@ -1489,6 +1491,7 @@ class ClaimController extends Controller
             }
         })->unique()->toArray();
         $claimHistory = $this->claimHistory($HBS_CL_CLAIM);
+        $claimHistory_en = $this->claimHistory($HBS_CL_CLAIM,'en');
         $incurDateTo = Carbon::parse($HBS_CL_CLAIM->FirstLine->incur_date_to);
         $incurDateFrom = Carbon::parse($HBS_CL_CLAIM->FirstLine->incur_date_from);
         $RBGOP = $HBS_CL_CLAIM->HBS_CL_LINE->whereIn('PD_BEN_HEAD.ben_head',['RB','RBM'])->sum('app_amt');
@@ -1509,6 +1512,7 @@ class ClaimController extends Controller
         $content = $letter->template;
         $content = str_replace('[[$clNo]]', $claim->code_claim_show , $content);
         $content = str_replace('[[$claimHistory]]', $claimHistory , $content);
+        $content = str_replace('[[$claimHistory_en]]', $claimHistory_en , $content);
         $content = str_replace('[[$memEffDate]]', Carbon::parse($HBS_CL_CLAIM->member->eff_date)->format('d/m/Y') , $content);
         $content = str_replace('[[$ProvPstAmt]]', formatPrice(data_get($claim->hospital_request,'prov_gop_pres_amt') + $adminfee), $content);
         $content = str_replace('[[$ProDeniedAmt]]', formatPrice($sumAmountReject), $content);
@@ -1545,7 +1549,6 @@ class ClaimController extends Controller
         $content = str_replace('[[$ltrDate]]', getVNLetterDate(), $content);
         $content = str_replace('[[$nowDay]]', Carbon::now()->toDateString(), $content);
         $content = str_replace('[[$pstAmt]]', formatPrice($HBS_CL_CLAIM->sumPresAmt), $content);
-        $content = str_replace('[[$payMethod]]', $payMethod, $content);
         $content = str_replace('[[$deniedAmt]]', formatPrice((int)$deniedAmt) , $content);
         $content = str_replace('[[$claimNo]]', $claim->code_claim_show , $content);
         $content = str_replace('[[$memRefNo]]', $HBS_CL_CLAIM->member->memb_ref_no , $content);
@@ -1557,14 +1560,39 @@ class ClaimController extends Controller
         $add = array_filter($add);
         $content = str_replace('[[$add]]', empty($add) ? "" : implode(", ",$add) ,$content);
         $htm_infoReject = "";
+        $htm_infoReject_en = "";
         if ($deniedAmt != 0 || $CSRRemark) {
-            $htm_infoReject = "<p><span style='font-family: arial, helvetica, sans-serif; font-size: 11pt;'>
-            Chúng tôi rất tiếc khoản tiền ".formatPrice($deniedAmt)." VNĐ còn lại không được thanh toán vì:
-            </span></p>" .
-            implode('', $CSRRemark) ."</br>". implode('', array_unique($TermRemark));
+            $htm_infoReject = "<p style='font-family: arial, helvetica, sans-serif; font-size: 10pt;'><span style='font-family: arial, helvetica, sans-serif; font-size: 10pt;'>
+            Số tiền không được bồi thường:  <strong style='font-family: arial, helvetica, sans-serif; font-size: 10pt;'>".formatPrice($deniedAmt). " đồng</strong>" .
+            "</span><br>" . 
+            "<span style='font-family: arial, helvetica, sans-serif; font-size: 10pt;'>Diễn giải:</span><br>" .
+            implode('<br>', $CSRRemark) ;
+            if(!empty($TermRemark)){
+                $htm_infoReject .= "<p><span style='font-family: arial, helvetica, sans-serif; font-size: 10pt;'>Quý khách vui lòng tham khảo (các) điều khoản sau:</span></p><ul>" .
+                implode('', $TermRemark)."</ul></p>";
+            }else{
+                $htm_infoReject .= "</p>";
+            }
+            
+            $htm_infoReject_en = "<p style='font-family: arial, helvetica, sans-serif; font-size: 10pt;'><span style='font-family: arial, helvetica, sans-serif; font-size: 10pt;'>
+            Rejected amount:  <strong style='font-family: arial, helvetica, sans-serif; font-size: 10pt;'>".formatPrice($deniedAmt). " VND</strong>" .
+            "</span></p>" . 
+            "<p><span style='font-family: arial, helvetica, sans-serif; font-size: 10pt;'>Description:</span></p>" .
+            implode('<br>', $CSRRemark_en) .
+            "<p><span style='font-family: arial, helvetica, sans-serif; font-size: 10pt;'>Please kindly refer to the below condition(s):</span></p><ul>" .
+            implode('', $TermRemark)."</ul></p>";
         }
-        $content = str_replace('[[$infoReject]]', $htm_infoReject , $content);
 
+        $content = str_replace('[[$infoReject]]', $htm_infoReject , $content);
+        $content = str_replace('[[$infoReject_en]]', $htm_infoReject_en , $content);
+        if((int)$sumAppAmt > 0){
+            $content = str_replace('[[$payMethod]]', $payMethod, $content);
+            $content = str_replace('[[$payMethod_en]]', $payMethod_en, $content);
+        }else{
+            $content = str_replace('[[$payMethod]]', "", $content);
+            $content = str_replace('[[$payMethod_en]]', "", $content);
+        }
+        
         $content = str_replace('[[$DOB]]', Carbon::parse($HBS_CL_CLAIM->member->dob)->format('d/m/Y') , $content);
         $content = str_replace('[[$SEX]]', str_replace('SEX_', "",$HBS_CL_CLAIM->member->scma_oid_sex) , $content);
         $content = str_replace('[[$PoNo]]', $police->pocy_no, $content);
@@ -1576,7 +1604,8 @@ class ClaimController extends Controller
             $content = str_replace('[[$CSRRemark]]', implode('',$CSRRemark) , $content);
             $content = str_replace('[[$TermRemark]]', implode('',array_unique($TermRemark)) , $content);
         }
-        $content = str_replace('[[$tableInfoPayment]]', $tableInfo , $content);
+        $content = str_replace('[[$tableInfoPayment]]', $this->tableInfoPayment($HBS_CL_CLAIM) , $content);
+        $content = str_replace('[[$tableInfoPayment_en]]', $this->tableInfoPayment($HBS_CL_CLAIM,'en') , $content);
         $content = str_replace('[[$apvAmt]]', formatPrice((int)$sumAppAmt), $content);
         $content = str_replace('[[$adminfee]]', formatPrice((int)$adminfee), $content);
         $content = str_replace('[[$time_pay]]', $time_pay, $content);
@@ -1585,197 +1614,109 @@ class ClaimController extends Controller
         
     }
 
-    function tableInfoPayment($HBS_CL_CLAIM){
+    function tableInfoPayment($HBS_CL_CLAIM, $lang = null){
+        $list_bentype = DB::connection('oracle')->table('sy_sys_code_lang')->where('scma_oid','like','%BENEFIT_TYPE_%')->get();
         $sum_pre_amt = 0;
         $sum_app_amt = 0;
-        $HbsBenhead = \App\HbsBenhead::pluck('desc_vn','code');
-        
+        $HbsBenhead = \App\HBS_PD_BEN_HEAD::whereNotNull('BEN_HEAD')->with('PD_BEN_HEAD_LANG')->get();
+
+        $col_benefit = $lang == 'en' ? 'Benefits' : 'Quyền lợi bảo hiểm';
+        $col_submitted_amount = $lang == 'en' ? 'Submitted amount' : 'Số tiền yêu cầu bồi thường';
+        $col_paid_amount = $lang == 'en' ? 'Paid amount<br>(Based on validity documents)' : 'Số tiền bồi thường<br>(Căn cứ trên chứng từ hợp lệ)';
+        $col_limit = $lang == 'en' ? 'Limit' : 'Giới hạn thanh toán';
+        $code_desc = $lang == 'en' ? 'code_desc' : 'code_desc_vn';
         $html = '
         <style type="text/css">
-            table { page-break-inside:auto ; font-size: 11pt; font-family: arial, helvetica, sans-serif;}
-            tr    { page-break-inside:avoid; page-break-after:auto ; font-size: 11pt; font-family: arial, helvetica, sans-serif;}
-            thead { display:table-header-group ; font-size: 11pt; font-family: arial, helvetica, sans-serif;}
-            tfoot { display:table-footer-group ; font-size: 11pt; font-family: arial, helvetica, sans-serif;}
+            table { page-break-inside:auto ; font-size: 10pt; font-family: arial, helvetica, sans-serif;}
+            tr    { page-break-inside:avoid; page-break-after:auto ; font-size: 10pt; font-family: arial, helvetica, sans-serif;}
+            thead { display:table-header-group ; font-size: 10pt; font-family: arial, helvetica, sans-serif;}
+            tfoot { display:table-footer-group ; font-size: 10pt; font-family: arial, helvetica, sans-serif;}
         </style>
                 <table style=" border: 1px solid #1e91e3; border-collapse: collapse;width: 100%">
                     <thead style="background: aliceblue">
                         <tr>
-                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt" rowspan="2">Quyền lợi bảo hiểm</th>
-                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt">Giới hạn thanh toán</th>
-                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt">Số tiền yêu cầu bồi thường </th>
-                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt">Số tiền bồi thường <br />(Căn cứ trên chứng từ hợp lệ)</th>
+                            <th style="width: 30%;border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt" rowspan="2">'.$col_benefit.'</th>
+                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt">'.$col_limit.'</th>
+                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt">'.$col_submitted_amount.'</th>
+                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt">'.$col_paid_amount.'</th>
                         </tr>
                         <tr>
-                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt">(VNĐ)</th>
-                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt">(VNĐ)</th>
+                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt">(VNĐ)</th>
+                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt">(VNĐ)</th>
+                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt">(VNĐ)</th>
                         </tr>
                     </thead>';
-        $IP = [];
-        $OP = [];
-        $DT = [];
+        $data_ben_type = [];
+        
+        
         foreach ($HBS_CL_CLAIM->HBS_CL_LINE as $keyCL_LINE => $valueCL_LINE) {
-            switch ($valueCL_LINE->PD_BEN_HEAD->scma_oid_ben_type) {
-                case 'BENEFIT_TYPE_DT':
-                    $DT[] = $valueCL_LINE;
-                    break;
-                case 'BENEFIT_TYPE_OP':
-                    $OP[] = $valueCL_LINE;
-                    break;
-                default:
-                    $dateic = Carbon::parse($valueCL_LINE->incur_date_from)->format('dmy');
-                    $hopital = Str::slug($valueCL_LINE->prov_name,'-');
-                    $IP["$dateic-$hopital"][] = $valueCL_LINE;
-                    break;
+            $incur_date = "";
+            $incur_date_from = $valueCL_LINE->incur_date_from;
+            $incur_date_to = $valueCL_LINE->incur_date_to;
+            if($incur_date_from == $incur_date_to || empty($incur_date_to)){
+                $incur_date = Carbon::parse($incur_date_from)->format('d/m/Y');
+            }else{
+                $incur_date = Carbon::parse($incur_date_from)->format('d/m/Y') ." - " .Carbon::parse($incur_date_to)->format('d/m/Y');
             }
+            $data_ben_type[strtotime($incur_date_from)."#".$incur_date][$valueCL_LINE->PD_BEN_HEAD->scma_oid_ben_type][] = $valueCL_LINE;
         }
         $html .= '<tbody>';
-            // nội trú
-        foreach ($IP as $keyIP => $valueIP) {
-            $html .= '<tr>
-                    <td style="border: 1px solid #1e91e3; font-weight:bold; font-family: arial, helvetica, sans-serif ; font-size: 11pt ; color: #1e91e3;">Nội Trú</td>
-                    <td style="border: 1px solid #1e91e3; font-family: arial, helvetica, sans-serif ; font-size: 11pt"></td>
-                    <td style="border: 1px solid #1e91e3; font-family: arial, helvetica, sans-serif ; font-size: 11pt"></td>
-                    <td style="border: 1px solid #1e91e3; font-family: arial, helvetica, sans-serif ; font-size: 11pt"></td>
-                </tr>';
-            foreach ($valueIP as $key => $value) {
-                $range_pay = "";
-                $limit = $this->getlimitIP($value);
-                
-                $html .=    '
-                            <tr>
-                                <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">'.data_get($HbsBenhead,$value->PD_BEN_HEAD->ben_head).'</td>
-                                <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt">'.$limit.'</td>
-                                <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt ; text-align: center; vertical-align: middle; color: #1e91e3;">'.formatPrice($value->pres_amt).'</td>
-                                <td style="border: 1px solid #1e91e3 ; text-align: center; vertical-align: middle; font-family: arial, helvetica, sans-serif ; font-size: 11pt ; color: #1e91e3;">'.formatPrice($value->app_amt).'</td>
-                            </tr>
-                            ';
-                $sum_pre_amt += $value->pres_amt;
-                $sum_app_amt += $value->app_amt;
-            }
-        }
-        // ngoại trú
-        foreach ($OP as $key => $value) {
-            $limit = $this->getlimitOP($value);
-            
-            $content_limit = "";
-            
-            if($key == 0){
-                
+        ksort($data_ben_type);
+        foreach ($data_ben_type as $incur => $GroupDate) {
+            $incur_date = explode("#",$incur)[1];
+            foreach ($GroupDate as $bentype => $GroupClaimLine) {
                 $html .= '<tr>
-                            <td style="border: 1px solid #1e91e3 ; font-weight:bold; font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">Ngoại Trú</td>
-                            <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt"></td>
-                            <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt"></td>
-                            <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt"></td>
+                            <td colspan="4" style="border: 1px solid #1e91e3; font-weight:bold; font-family: arial, helvetica, sans-serif ; font-size: 10pt ; color: #1e91e3;">'. data_get($list_bentype->where("scma_oid", $bentype)->first() , $code_desc) . " ($incur_date)".'</td>
                         </tr>';
+                foreach ($GroupClaimLine as $keyIP => $value) {
+                        $range_pay = "";
+                        $limit = $this->getlimitIP($value, $lang);
+                        $html .=    '
+                                    <tr>
+                                        <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt; color: #1e91e3;">'.
+                                        data_get($HbsBenhead->where('ben_head',$value->PD_BEN_HEAD->ben_head)->where('scma_oid_ben_type',$bentype)->first(),'PD_BEN_HEAD_LANG.'.$code_desc )
+                                        .'</td>
+                                        <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt">'.$limit.'</td>
+                                        <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt ; text-align: center; vertical-align: middle; color: #1e91e3;">'.formatPrice($value->pres_amt).'</td>
+                                        <td style="border: 1px solid #1e91e3 ; text-align: center; vertical-align: middle; font-family: arial, helvetica, sans-serif ; font-size: 10pt ; color: #1e91e3;">'.formatPrice($value->app_amt).'</td>
+                                    </tr>
+                                    ';
+                        $sum_pre_amt += $value->pres_amt;
+                        $sum_app_amt += $value->app_amt;
+                }
             }
-            $html .=    '<tr>
-                            <td style="border: 1px solid #1e91e3;font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">'.data_get($HbsBenhead,$value->PD_BEN_HEAD->ben_head).'</td>
-                            <td style="border: 1px solid #1e91e3; font-family: arial, helvetica, sans-serif ; font-size: 11pt">'.$limit.'</td>
-                            <td style="border: 1px solid #1e91e3; text-align: center; vertical-align: middle; font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">'.formatPrice($value->pres_amt).'</td>
-                            <td style="border: 1px solid #1e91e3; text-align: center; vertical-align: middle; font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">'.formatPrice($value->app_amt).'</td>
-                        </tr>';
-            $sum_pre_amt += $value->pres_amt;
-            $sum_app_amt += $value->app_amt;
         }
-
-        // rang
-        foreach ($DT as $key => $value) {
-            if($key == 0){
-                
-                $html .= '<tr>
-                            <td style="border: 1px solid #1e91e3 ; font-weight:bold; font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">Răng</td>
-                            <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt">Tối đa  '.formatPrice(data_get($limit,'amt_yr')).' mỗi năm</td>
-                            <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt"></td>
-                            <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt"></td>
-                        </tr>';
-            }
-            $html .=    '<tr>
-                            <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">'.data_get($HbsBenhead,$value->PD_BEN_HEAD->ben_head).'</td>
-                            <td style="border: 1px solid black ; font-family: arial, helvetica, sans-serif ; font-size: 11pt">Từ trên '.formatPrice(data_get($limit,'amt')).' mỗi lần thăm khám</td>
-                            <td style="border: 1px solid #1e91e3; text-align: center; vertical-align: middle; font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">'.formatPrice($value->pres_amt).'</td>
-                            <td style="border: 1px solid #1e91e3; text-align: center; vertical-align: middle; font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">'.formatPrice($value->app_amt).'</td>
-                        </tr>';
-            $sum_pre_amt += $value->pres_amt;
-            $sum_app_amt += $value->app_amt;
-        }
-            $html .=    '<tr>
-                            <th style="border: 1px solid #1e91e3 ;font-family: arial, helvetica, sans-serif ; font-size: 11pt" colspan="2">Tổng cộng:</th>
-                            
-                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">'.formatPrice($sum_pre_amt).'</th>
-                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">[[$time_pay]]</th>
-                        </tr>';
-
+        $html .=    '<tr>
+            <th style="border: 1px solid #1e91e3 ;font-family: arial, helvetica, sans-serif ; font-size: 10pt" colspan="2">'.($lang == 'en' ? 'Total: ': 'Tổng cộng: ').'</th>
+        
+            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt; color: #1e91e3;">'.formatPrice($sum_pre_amt).'</th>
+            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt; color: #1e91e3;">[[$time_pay]]</th>
+        </tr>';
         $html .= '</tbody>';
         $html .= '</table>';
         return $html;
     }
 
-    function getlimitOP($value){
+    function getlimitIP($value,$lang = null){
+        $ct = $lang == 'en' ? 'benhead_en' : 'benhead';
         $ben_head = $value->PD_BEN_HEAD->ben_head;
+        $ben_type = $value->PD_BEN_HEAD->scma_oid_ben_type;
         $data= [];
         if ($value->MR_POLICY_PLAN) {
             foreach ($value->MR_POLICY_PLAN->PD_PLAN->PD_PLAN_LIMIT as $keyt => $valuet) {
                 
                 if ($ben_head ) {
                     if ($valuet->limit_type == 'H') {
-                        $array  = $valuet->PD_BEN_HEAD->where('scma_oid_ben_type', 'BENEFIT_TYPE_OP')->where('ben_head', $ben_head);
-                        
+                        $array  = $valuet->PD_BEN_HEAD->where('scma_oid_ben_type', $ben_type)->where('ben_head', $ben_head);
                         if ($array->count() > 0) {
-                            $colect_a =  collect($valuet->only(array_keys(config('constants.benhead'))))->filter();
+                            $colect_a =  collect($valuet->only(array_keys(config("constants.$ct"))))->filter();
                             foreach ($colect_a as $colect_akey => $colect_avalue) {
-                                $data[] = formatPrice($colect_avalue) . " ".data_get(config('constants.benhead'),$colect_akey);
+                                $data[] = formatPrice($colect_avalue) . " ".data_get(config("constants.$ct"),$colect_akey);
                             }
                             
                         }
                     }
                 }
-
-                
-            }
-        }  
-        
-        return implode(" - ",$data);
-    }
-    
-    function getlimitDT($value){
-        $ben_head = $value->PD_BEN_HEAD->ben_head;
-        $data= [];
-        $data['amt_from'] = 0;
-        if ($value->MR_POLICY_PLAN) {
-            foreach ($value->MR_POLICY_PLAN->PD_PLAN->PD_PLAN_LIMIT as $keyt => $valuet) {
-                if ($valuet->limit_type == 'T') {
-                    $array  = $valuet->PD_BEN_HEAD->where('scma_oid_ben_type', 'BENEFIT_TYPE_DT');
-                    if ($array->count() > 0) {
-                        $data['amt_yr'] = $valuet->amt_yr == null ? 0 : $valuet->amt_yr;
-                        $data['amt'] = $valuet->amt_vis == null ? 0 : $valuet->amt_vis;
-                    }
-                }
-            }
-        }
-    
-        return $data;
-    }
-
-    function getlimitIP($value){
-        $ben_head = $value->PD_BEN_HEAD->ben_head;
-        $data= [];
-        if ($value->MR_POLICY_PLAN) {
-            foreach ($value->MR_POLICY_PLAN->PD_PLAN->PD_PLAN_LIMIT as $keyt => $valuet) {
-                
-                if ($ben_head ) {
-                    if ($valuet->limit_type == 'H') {
-                        $array  = $valuet->PD_BEN_HEAD->where('scma_oid_ben_type', 'BENEFIT_TYPE_IP')->where('ben_head', $ben_head);
-                        
-                        if ($array->count() > 0) {
-                            $colect_a =  collect($valuet->only(array_keys(config('constants.benhead'))))->filter();
-                            foreach ($colect_a as $colect_akey => $colect_avalue) {
-                                $data[] = formatPrice($colect_avalue) . " ".data_get(config('constants.benhead'),$colect_akey);
-                            }
-                            
-                        }
-                    }
-                }
-
                 
             }
         }  
@@ -2611,10 +2552,12 @@ class ClaimController extends Controller
         return redirect('/admin/claim/'.$id)->with('status', 'Đã cập nhật thành công');
     }
 
-    public function claimHistory($HBS_CL_CLAIM){
+    public function claimHistory($HBS_CL_CLAIM , $lang = null ){
+        $list_bentype = DB::connection('oracle')->table('sy_sys_code_lang')->where('scma_oid','like','%BENEFIT_TYPE_%')->get();
+
         $pocy_no = $HBS_CL_CLAIM->Police->pocy_no;
         $plan_oid = data_get($HBS_CL_CLAIM->PolicePlan,'PD_PLAN.plan_oid');
-        
+        $code_desc = $lang =='en' ?  'code_desc' : 'code_desc_vn';
         $limit_benefit = [];
         $limit = \App\HBS_VW_RP_POLICY_PLAN_BEN_TYPE::where('plan_oid',$plan_oid)->with(['PD_PLAN'=>function ($q) {
             $q->with(['PD_PLAN_LIMIT' => function ($k) {
@@ -2624,34 +2567,41 @@ class ClaimController extends Controller
         }])->get();
         
         foreach ($limit as $key => $value) {
-           $str_type = $value->benefit_type;
-           $type = $value->scma_oid_ben_type;
-           foreach($value->PD_PLAN->PD_PLAN_LIMIT as $key2 => $value2){
-               if($value2->PD_BEN_HEAD[0]->scma_oid_ben_type == $type){
-                    $limit_benefit[] = $str_type . ": " . formatPrice($value2->amt_yr);
-               }
-           }
+
+            $type = $value->scma_oid_ben_type;
+            foreach($value->PD_PLAN->PD_PLAN_LIMIT as $key2 => $value2){
+                if($value2->PD_BEN_HEAD[0]->scma_oid_ben_type == $type){
+                    $limit_benefit[$type] = data_get($list_bentype->where('scma_oid',$type)->first() , $code_desc) . ": " . formatPrice($value2->amt_yr);
+                }
+            }
         }
         $limit_benefit = collect($limit_benefit)->unique()->toArray();
         $claims = $HBS_CL_CLAIM->historyClaimCurrentYearCurrent;
         $sum_app = 0;
         $sum_row = $claims->count(); 
+        $claim_no = $lang == 'en' ? 'Claim No.' : 'Claim số';
+        $limit_payment = $lang == 'en' ? 'Limit' : 'Giới hạn thanh toán';
+        $incur_date = $lang == 'en' ? 'Treatment Period' : 'Ngày khám';
+        $diagnosis = $lang == 'en' ? 'Diagnosis' : 'Bệnh';
+        $benefit = $lang == 'en' ? 'Benefit' : 'Quyền lợi ';
+        $app_amt = $lang == 'en' ? 'Paid amount <br />(VND)' : 'Số tiền bồi thường <br />(VNĐ)';
+        $total = $lang == 'en' ? 'Total' : 'Tổng cộng';
         $html = '
         <style type="text/css">
-            table { page-break-inside:auto ; font-size: 11pt; font-family: arial, helvetica, sans-serif;}
-            tr    { page-break-inside:avoid; page-break-after:auto ; font-size: 11pt; font-family: arial, helvetica, sans-serif;}
-            thead { display:table-header-group ; font-size: 11pt; font-family: arial, helvetica, sans-serif;}
-            tfoot { display:table-footer-group ; font-size: 11pt; font-family: arial, helvetica, sans-serif;}
+            table { page-break-inside:auto ; font-size: 10pt; font-family: arial, helvetica, sans-serif;}
+            tr    { page-break-inside:avoid; page-break-after:auto ; font-size: 10pt; font-family: arial, helvetica, sans-serif;}
+            thead { display:table-header-group ; font-size: 10pt; font-family: arial, helvetica, sans-serif;}
+            tfoot { display:table-footer-group ; font-size: 10pt; font-family: arial, helvetica, sans-serif;}
         </style>
                 <table style=" border: 1px solid #1e91e3; border-collapse: collapse;width: 100%">
                     <thead style="background: aliceblue">
                         <tr>
-                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt">Claim số</th>
-                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt">Giới hạn thanh toán <br />(VNĐ)</th>
-                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt">Ngày khám</th>
-                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt">Bệnh</th>
-                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt">Quyền lợi <br />(IP/OP/DT/PA..)</th>
-                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt">Số tiền bồi thường <br />(VNĐ)</th>
+                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt">'.$claim_no.'</th>
+                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt">'.$limit_payment.'</th>
+                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt">'.$incur_date.'</th>
+                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt">'.$diagnosis.'</th>
+                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt">'.$benefit.'</th>
+                            <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt">'.$app_amt.'</th>
                         </tr>
                     </thead>
                     <tbody>';
@@ -2668,27 +2618,26 @@ class ClaimController extends Controller
             $hbs_diag = $value->HBS_CL_LINE->map(function ($c) {
                 return empty($c->RT_DIAGNOSIS->diag_desc_vn) ? $c->RT_DIAGNOSIS->diag_desc : $c->RT_DIAGNOSIS->diag_desc_vn;
             })->unique()->toArray();
-            $benhead = $value->HBS_CL_LINE->map(function ($c) {
-                return str_replace("BENEFIT_TYPE_", "", $c->PD_BEN_HEAD->scma_oid_ben_type);
+            $benhead = $value->HBS_CL_LINE->map(function ($c) use($list_bentype, $code_desc){
+                return data_get($list_bentype->where('scma_oid',$c->PD_BEN_HEAD->scma_oid_ben_type)->first() , $code_desc);
             })->unique()->toArray();
-           
             $sum_app += $value->SumAppAmt;
             $html .=    '<tr>
-                            <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">'.$value->cl_no.'</td>';
+                            <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt; color: #1e91e3;">'.$value->cl_no.'</td>';
             if($key == 0){
-                $html .= '<td rowspan="'.$sum_row.'" style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">'.implode("<br />",$limit_benefit).'</td>';
+                $html .= '<td rowspan="'.$sum_row.'" style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt; color: #1e91e3;">'.implode("<br />",$limit_benefit).'</td>';
             }
                             
-            $html .=        '<td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">'.implode(" ; ",$incur).'</td>
-                            <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">'.implode(" ; ",$hbs_diag).'</td>
-                            <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">'.implode(" ; ",$benhead).'</td>
-                            <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">'.formatPrice($value->SumAppAmt).'</td>
+            $html .=        '<td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt; color: #1e91e3;">'.implode(" ; ",$incur).'</td>
+                            <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt; color: #1e91e3;">'.implode(" ; ",$hbs_diag).'</td>
+                            <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt; color: #1e91e3;">'.implode(" ; ",$benhead).'</td>
+                            <td style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt; color: #1e91e3;">'.formatPrice($value->SumAppAmt).'</td>
                         </tr>';
         }
         $html .=    '<tr>
-                        <th style="border: 1px solid #1e91e3 ;font-family: arial, helvetica, sans-serif ; font-size: 11pt" >Tổng cộng:</th>
-                        <th colspan="4" style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">'.'</th>
-                        <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 11pt; color: #1e91e3;">'.formatPrice($sum_app).'</th>
+                        <th style="border: 1px solid #1e91e3 ;font-family: arial, helvetica, sans-serif ; font-size: 10pt" >'.$total.'</th>
+                        <th colspan="4" style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt; color: #1e91e3;">'.'</th>
+                        <th style="border: 1px solid #1e91e3 ; font-family: arial, helvetica, sans-serif ; font-size: 10pt; color: #1e91e3;">'.formatPrice($sum_app).'</th>
                     </tr>';
         $html .= '</tbody>';
         $html .= '</table>';
