@@ -604,7 +604,7 @@ function note_pay($export_letter){
 
 function datepayment(){
     $now = Carbon\Carbon::now();
-    return "Ngày ".$now->day." Tháng ".$now->month." Năm ".$now->year;
+    return $now->format('d/m/Y');
 }
 function notifi_system($content, $arrUserID = []){
     $user = App\User::findOrFail(1);
