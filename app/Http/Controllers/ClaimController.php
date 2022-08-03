@@ -1440,6 +1440,7 @@ class ClaimController extends Controller
         $police = $HBS_CL_CLAIM->Police;
         $policyHolder = $HBS_CL_CLAIM->policyHolder;
         $payMethod = payMethod($HBS_CL_CLAIM);
+        $payMethod_en = payMethod($HBS_CL_CLAIM,"en");
         $barcode = '<barcode code="'.$claim->barcode.'" type="C93"  height="1.3" />'
         .'<p style="text-align: right;">'.$claim->barcode.'</p>';
         $CSRRemark_TermRemark = CSRRemark_TermRemark($claim);
